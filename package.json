@@ -1,0 +1,27 @@
+{
+  "name": "commish-bot",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "prestart": "npm run build",
+    "start": "node dist/bot.js",
+    "deploy-commands": "node bin/deploy-commands.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@discordjs/rest": "^1.0.1",
+    "discord-api-types": "^0.37.3",
+    "discord.js": "^14.2.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.33.1",
+    "@typescript-eslint/parser": "^5.33.1",
+    "eslint": "^8.22.0",
+    "typescript": "^4.7.4"
+  }
+}
