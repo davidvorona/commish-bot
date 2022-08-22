@@ -8,6 +8,14 @@ export interface ConfigJson {
     CLIENT_ID: string;
     GUILD_ID: string;
     DATA_DIR: string;
+    TEST_CHANNEL_ID: string;
+}
+
+export interface YahooJson {
+    CLIENT_ID: string;
+    CLIENT_SECRET: string;
+    APP_ID: string;
+    LEAGUE_ID: string;
 }
 
 export interface AnyObject {
