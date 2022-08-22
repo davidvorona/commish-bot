@@ -13,7 +13,7 @@ export default {
         const draftTime = league.getHumanReadableDraftDate() + " at " + league.getHumanReadableDraftTime();
         return new EmbedBuilder()
             .setColor(0x0099FF)
-            .setTitle("Draft Info")
+            .setTitle("Draft Info (/draft)")
             .setURL(`https://football.fantasysports.yahoo.com/f1/${LEAGUE_ID}/draft`)
             .setDescription(league.getName())
             .addFields(
@@ -22,6 +22,22 @@ export default {
                 { name: ":timer: Draft pick time", value: league.getHumanReadableDraftPickTime(), inline: true },
                 { name: ":football: Number of teams", value: league.getNumTeams(), inline: true }
             )
+            .setTimestamp();
+    },
+    team: (league: League, teamId: string) => {
+        const team = league.getTeams()?.find(t => t.team_id === teamId);
+        const draftGrade = team?.has_draft_grade ? team?.draft_grade : "N/A";
+        return new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setTitle("Team Info (/team)")
+            .setURL(team?.url)
+            .addFields(
+                { name: "Team name", value: team?.name },
+                { name: "Draft grade", value: draftGrade },
+                { name: "Number of trades", value: team?.number_of_trades.toString() }
+
+            )
+            .setImage(team?.team_logos[0].url)
             .setTimestamp();
     }
 };

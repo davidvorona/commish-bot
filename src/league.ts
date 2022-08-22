@@ -127,10 +127,22 @@ export default class League {
         return (this.draft_pick_time / 1000) + " seconds";
     }
 
+    getTeams() {
+        return this.teams;
+    }
+
     getNumTeams() {
         if (!this.num_teams) {
             return "N/A";
         }
         return this.num_teams.toString();
+    }
+
+    getTeamNamesMap() {
+        const result: Record<string, string> = {};
+        this.teams?.forEach((t) => {
+            result[t.team_id] = t.name;
+        });
+        return result;
     }
 }

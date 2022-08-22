@@ -15,7 +15,7 @@ module.exports = [
         description: "Get draft info"
     },
     {
-        name: "claim",
-        description: "Claim a team"
+        name: "team",
+        description: "Get team info"
     }
 ];

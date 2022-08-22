@@ -31,9 +31,9 @@ export default class WeekTicker {
         const draftStatus = this.league.getDraftStatus();
         try {
             if (draftStatus === DRAFT_STATUS.PREDRAFT) {
-                this.handlePredraft();
+                await this.handlePredraft();
             } else if (draftStatus === DRAFT_STATUS.POSTDRAFT) {
-                this.handleNewWeek();
+                await this.handleNewWeek();
             }
             console.info(
                 `Week ${this.league.getCurrentWeek()}`,
@@ -46,19 +46,19 @@ export default class WeekTicker {
         }
     }
 
-    handlePredraft() {
+    async handlePredraft() {
         const draftEmbed = embeds.draft(this.league);
-        this.channel.send({
+        await this.channel.send({
             content: `**Attention, ${this.league.getName()}!** It's Tuesday, which means we're starting up another`
-                + " week of fantasy football! This league is currently **predraft**, which means no shotguns"
-                + " are currently due. Get those draft strats finalized and those gullets ready!\n*Use **/draft**"
-                + " to see draft info.*",
+                + " week of fantasy football! This league is currently in **predraft**, so no shotguns"
+                + " are currently due. Get those draft strats finalized and those gullets ready!\n*Use **/claim**"
+                + " to claim a team.*",
             embeds: [draftEmbed]
         });
     }
 
     async handleNewWeek() {
         const newWeek = await this.league.nextWeek();
-        this.channel.send(`Welcome to **Week ${newWeek}**! As always, there are winners and losers.`);
+        await this.channel.send(`Welcome to **Week ${newWeek}**! As always, there are winners and losers.`);
     }
 }

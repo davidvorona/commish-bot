@@ -1,12 +1,13 @@
 import path from "path";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
-import { Client, Guild, GatewayIntentBits, TextChannel } from "discord.js";
+import { Client, Guild, GatewayIntentBits, TextChannel, SlashCommandBuilder } from "discord.js";
 import { parseJson, readFile } from "./util";
-import { ConfigJson, AuthJson, YahooJson } from "./types";
+import { ConfigJson, AuthJson, YahooJson, AnyObject } from "./types";
 import League from "./league";
 import WeekTicker from "./week-ticker";
 import embeds from "./embeds";
+import Storage from "./storage";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const defaultCommands = require("../config/commands");
@@ -28,14 +29,16 @@ const client = new Client({
     intents: [GatewayIntentBits.Guilds]
 });
 
+const ownersStorage = new Storage("owners.json");
+
 const league = new League(LEAGUE_ID, YAHOO_CLIENT_ID, CLIENT_SECRET);
 
-const setGuildCommands = async (guildId: string) => {
+const setGuildCommands = async (guildId: string, builtCommands: AnyObject[] = []) => {
     try {
         console.log(`Refreshing application (/) commands for guild ${guildId}`);
         await rest.put(
             Routes.applicationGuildCommands(CLIENT_ID, guildId),
-            { body: defaultCommands }
+            { body: [...defaultCommands, ...builtCommands] }
         );
     } catch (error) {
         console.error(error);
@@ -69,6 +72,23 @@ client.on("ready", async () => {
             await league.load();
             console.info("Loaded league:", league);
 
+            // map: id => name
+            const teamNamesMap = league.getTeamNamesMap();
+            const choices = Object.keys(teamNamesMap).map(
+                teamId => ({ name: teamNamesMap[teamId], value: teamId })
+            );
+            const command = new SlashCommandBuilder()
+                .setName("claim")
+                .setDescription("Claim a team")
+                .addStringOption((option) => {
+                    return option
+                        .setName("team")
+                        .setRequired(true)
+                        .setDescription("Choose a team")
+                        .addChoices(...choices);
+                });
+            await setGuildCommands(guild.id, [command]);
+
             const cronTime = process.env.DEV_MODE
                 ? "* * * * *"   // Every minute
                 : "0 9 * * 2"; // Every Tuesday at 9am
@@ -87,13 +107,11 @@ client.on("guildCreate", async (guild: Guild) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isCommand()) return;
+    if (!interaction.isChatInputCommand()) return;
 
     if (interaction.commandName === "ping") {
         await interaction.reply("pong!");
     }
-
-    if (!interaction.guildId) return;
 
     if (interaction.commandName === "ftc") {
         await interaction.reply("Fuck the commish!");
@@ -104,6 +122,28 @@ client.on("interactionCreate", async (interaction) => {
         await interaction.reply({
             embeds: [embeds.draft(league)]
         });
+    }
+
+    if (interaction.commandName === "claim") {
+        const teamId = interaction.options.getString("team") as string;
+        const teamNamesMap = league.getTeamNamesMap();
+        ownersStorage.add(interaction.user.id, teamId);
+        await interaction.reply(`${interaction.user} has claimed **${teamNamesMap[teamId]}**`);
+    }
+
+    if (interaction.commandName === "team") {
+        const owners = ownersStorage.read();
+        const teamId = owners[interaction.user.id] as string;
+        if (!teamId) {
+            await interaction.reply({
+                content: "You do not own a team. Use **/claim** to claim one.",
+                ephemeral: true
+            });
+            return;
+        }
+
+        const teamEmbed = embeds.team(league, teamId);
+        await interaction.reply({ embeds: [teamEmbed], ephemeral: true });
     }
 });
 
