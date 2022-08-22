@@ -9,7 +9,17 @@ export default class League {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     yf: any;
 
+    name?: string;
+
     draft_status?: string;
+
+    num_teams?: number;
+
+    draft_time?: Date;
+
+    draft_type?: string;
+
+    draft_pick_time?: number;
 
     current_week?: number;
 
@@ -32,17 +42,24 @@ export default class League {
     }
 
     async load() {
-        let results = await this.yf.league.teams(this.key);
+        let results = await this.yf.league.settings(this.key);
+
+        this.name = results.name;
 
         // Set league start/end date
         this.start_date = new Date(results.start_date);
         this.end_date = new Date(results.end_date);
 
         this.draft_status = results.draft_status;
+        this.num_teams = results.num_teams;
+        this.draft_time = new Date(Number(results.settings.draft_time) * 1000);
+        this.draft_type = results.settings.draft_type;
+        this.draft_pick_time = Number(results.settings.draft_pick_time * 1000);
 
         this.current_week = results.current_week;
         
         // Set teams
+        results = await this.yf.league.teams(this.key);
         this.teams = results.teams;
 
         // Set scoreboard: current week + matchups
@@ -55,7 +72,7 @@ export default class League {
     }
 
     async nextWeek() {
-        const results = await this.yf.league.metadata(this.key);
+        const results = await this.yf.league.meta(this.key);
 
         if (this.current_week === results.current_week) {
             throw new Error("Already incremented week, aborting");
@@ -68,7 +85,52 @@ export default class League {
         return this.current_week;
     }
 
-    async getCurrentWeek() {
+    getName() {
+        if (!this.name) {
+            return "N/A";
+        }
+        return this.name;
+    }
+
+    getCurrentWeek() {
         return this.current_week;
+    }
+
+    getDraftStatus() {
+        return this.draft_status;
+    }
+
+    getDraftTime() {
+        return this.draft_time;
+    }
+
+    getHumanReadableDraftDate() {
+        return this.draft_time?.toLocaleDateString();
+    }
+
+    getHumanReadableDraftTime() {
+        return this.draft_time?.toLocaleTimeString();
+    }
+
+    getDraftType() {
+        if (!this.draft_type) {
+            return "N/A";
+        }
+        return this.draft_type.charAt(0).toUpperCase()
+            + this.draft_type.toString().slice(1);
+    }
+
+    getHumanReadableDraftPickTime() {
+        if (!this.draft_pick_time) {
+            return "N/A";
+        }
+        return (this.draft_pick_time / 1000) + " seconds";
+    }
+
+    getNumTeams() {
+        if (!this.num_teams) {
+            return "N/A";
+        }
+        return this.num_teams.toString();
     }
 }

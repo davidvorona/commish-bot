@@ -1,11 +1,12 @@
 import path from "path";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
-import { CronJob } from "cron";
 import { Client, Guild, GatewayIntentBits, TextChannel } from "discord.js";
 import { parseJson, readFile } from "./util";
 import { ConfigJson, AuthJson, YahooJson } from "./types";
 import League from "./league";
+import WeekTicker from "./week-ticker";
+import embeds from "./embeds";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const defaultCommands = require("../config/commands");
@@ -66,20 +67,13 @@ client.on("ready", async () => {
             }
 
             await league.load();
+            console.info("Loaded league:", league);
 
-            const EVERY_TUESDAY_AT_9_AM = "0 9 * * 2";
-            const weekTicker = new CronJob(
-                EVERY_TUESDAY_AT_9_AM,
-                () => {
-                    const newWeek = league.nextWeek();
-                    console.log(
-                        `Week ${newWeek} started at `,
-                        new Date().toISOString()
-                    );
-                    mainChannel.send(`Welcome to **Week ${newWeek}**!`);
-                }
-            );
-
+            const cronTime = process.env.DEV_MODE
+                ? "* * * * *"   // Every minute
+                : "0 9 * * 2"; // Every Tuesday at 9am
+            
+            const weekTicker = new WeekTicker(cronTime, league, mainChannel);
             weekTicker.start();
         }
     } catch (err) {
@@ -103,6 +97,13 @@ client.on("interactionCreate", async (interaction) => {
 
     if (interaction.commandName === "ftc") {
         await interaction.reply("Fuck the commish!");
+    }
+
+    if (interaction.commandName === "draft") {
+        await league.refresh();
+        await interaction.reply({
+            embeds: [embeds.draft(league)]
+        });
     }
 });
 

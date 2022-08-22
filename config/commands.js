@@ -9,5 +9,13 @@ module.exports = [
     {
         name: "ftc",
         description: "Fuck the commish!"
+    },
+    {
+        name: "draft",
+        description: "Get draft info"
+    },
+    {
+        name: "claim",
+        description: "Claim a team"
     }
 ];
