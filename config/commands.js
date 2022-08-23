@@ -12,11 +12,11 @@ module.exports = [
     },
     {
         name: "draft",
-        description: "Get draft info"
+        description: "Get league draft info"
     },
     {
         name: "team",
-        description: "Get team info"
+        description: "Get your team info"
     },
     {
         name: "constitution",
@@ -24,7 +24,7 @@ module.exports = [
     },
     {
         name: "punishments",
-        description: "Get a link to the current punishment document"
+        description: "Get a link to the current punishments document"
     },
     {
         name: "onboard",
@@ -56,5 +56,9 @@ module.exports = [
                 ]
             }
         ]
+    },
+    {
+        name: "help",
+        description: "Get a list of available commands"
     }
 ];

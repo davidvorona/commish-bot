@@ -185,7 +185,12 @@ client.on("interactionCreate", async (interaction) => {
             const step = leagueStep as LeagueOnboardingStep;
             onboarding.completeLeagueStep(step);
         }
-        await interaction.reply("Step completed!");
+        await interaction.reply({ content: "Step completed!", ephemeral: true });
+    }
+
+    if (interaction.commandName === "help") {
+        const helpEmbed = embeds.help();
+        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
     }
 });
 

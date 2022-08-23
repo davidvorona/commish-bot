@@ -39,5 +39,17 @@ export default {
             )
             .setImage(team?.team_logos[0].url)
             .setTimestamp();
+    },
+    help: () => {
+        return new EmbedBuilder()
+            .setColor(0x0099FF)
+            .setTitle("List of Commands (/help)")
+            .addFields(
+                { name: "/draft", value: "Get league draft info" },
+                { name: "/team", value: "Get your team info" },
+                { name: "/constitution", value: "Get a link to the league constitution" },
+                { name: "/punishments", value: "Get a link to the current punishments document" }
+            )
+            .setTimestamp();
     }
 };
