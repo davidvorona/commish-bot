@@ -3,6 +3,5 @@ node_modules/
 
 dist/
 data/
-config/auth.json
-config/config.json
-config/yahoo.json
+config/
+!config/commands.js

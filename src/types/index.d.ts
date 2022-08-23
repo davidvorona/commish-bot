@@ -18,6 +18,12 @@ export interface YahooJson {
     LEAGUE_ID: string;
 }
 
+export interface LinksJson {
+    PUNISHMENT_SUBMISSIONS: string;
+    PUNISHMENTS_POLL: string;
+    CONSTITUTION: string;
+}
+
 export interface AnyObject {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: string | number | any;

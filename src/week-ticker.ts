@@ -4,7 +4,6 @@ import League from "./league";
 
 import embeds from "./embeds";
 
-
 const DRAFT_STATUS = {
     PREDRAFT: "predraft",
     POSTDRAFT: "postdraft"
