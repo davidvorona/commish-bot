@@ -28,7 +28,7 @@ const {
 const rest = new REST({ version: "9" }).setToken(TOKEN);
 
 const client = new Client({
-    intents: [GatewayIntentBits.Guilds]
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
 });
 
 const ownersStorage = new Storage("owners.json");
@@ -36,6 +36,7 @@ const onboardingStorage = new Storage("onboarding.json");
 
 let league: League;
 let onboarding: Onboarding;
+let weekTicker: WeekTicker;
 
 const setGuildCommands = async (guildId: string, builtCommands: AnyObject[] = []) => {
     try {
@@ -63,8 +64,8 @@ client.on("ready", async () => {
             if (!guild) {
                 throw new Error("There is no valid guild ID, aborting");
             }
-            await setGuildCommands(guild.id);
 
+            // Get the main channel for bot messages
             const mainChannel = process.env.DEV_MODE
                 ? guild.channels.cache.find(c => c.id === TEST_CHANNEL_ID)
                 : guild.systemChannel;
@@ -73,6 +74,10 @@ client.on("ready", async () => {
                 throw new Error("Unable to establish main channel");
             }
 
+            // Fetch guild members to cache them
+            await guild.members.fetch();
+
+            // Create and load the league
             league = new League(YAHOO_FANTASY_LEAGUE_ID, YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET);
             await league.load();
             console.info("Loaded league:", league);
@@ -82,9 +87,9 @@ client.on("ready", async () => {
             const cronTimeOnboarding = process.env.DEV_MODE
                 ? "* * * * *"   // Every minute
                 : "0 10,22 * * *"; // Every day at 10am and 10pm
-            const onboardingState = onboardingStorage.read() as AnyObject;
-            onboarding = new Onboarding(cronTimeOnboarding, onboardingState, mainChannel);
+            onboarding = new Onboarding(cronTimeOnboarding, onboardingStorage, mainChannel);
             onboarding.start();
+            console.info("Loaded onboarding", onboarding.toObject());
 
             // Register dynamic commands
             const claimCommand = league.buildClaimCommand();
@@ -95,7 +100,7 @@ client.on("ready", async () => {
             const cronTimeWeek = process.env.DEV_MODE
                 ? "* * * * *"   // Every minute
                 : "0 9 * * 2"; // Every Tuesday at 9am
-            const weekTicker = new WeekTicker(cronTimeWeek, league, mainChannel);
+            weekTicker = new WeekTicker(cronTimeWeek, league, mainChannel);
             weekTicker.start();
         }
     } catch (err) {
@@ -109,67 +114,70 @@ client.on("guildCreate", async (guild: Guild) => {
 });
 
 client.on("interactionCreate", async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
+    try {
+        if (!interaction.isChatInputCommand()) return;
 
-    if (interaction.commandName === "ping") {
-        await interaction.reply("pong!");
-    }
+        if (interaction.commandName === "ping") {
+            await interaction.reply("pong!");
+        }
 
-    if (interaction.commandName === "ftc") {
-        await interaction.reply("Fuck the commish!");
-    }
+        if (interaction.commandName === "ftc") {
+            await interaction.reply("Fuck the commish!");
+        }
 
-    if (interaction.commandName === "draft") {
-        await league.refresh();
-        await interaction.reply({
-            embeds: [embeds.draft(league)]
-        });
-    }
-
-    if (interaction.commandName === "claim") {
-        const teamId = interaction.options.getString("team") as string;
-        const teamNamesMap = league.getTeamNamesMap();
-        ownersStorage.add(interaction.user.id, teamId);
-        await interaction.reply(`${interaction.user} has claimed **${teamNamesMap[teamId]}**`);
-    }
-
-    if (interaction.commandName === "team") {
-        const owners = ownersStorage.read();
-        const teamId = owners[interaction.user.id] as string;
-        if (!teamId) {
+        if (interaction.commandName === "draft") {
+            await league.refresh();
             await interaction.reply({
-                content: "You do not own a team. Use **/claim** to claim one.",
-                ephemeral: true
+                embeds: [embeds.draft(league)]
             });
-            return;
         }
 
-        const teamEmbed = embeds.team(league, teamId);
-        await interaction.reply({ embeds: [teamEmbed], ephemeral: true });
-    }
-
-    if (interaction.commandName === "constitution") {
-        await interaction.reply(`**Major League Shotgunners Constitution**\n${CONSTITUTION_URL}`);
-    }
-
-    if (interaction.commandName === "punishments") {
-        await interaction.reply(`**Major League Shotgunners Punishments**\n${PUNISHMENT_SUBMISSIONS_URL}`);
-    }
-
-    if (interaction.commandName === "onboard") {
-        const step = interaction.options.getString("step");
-        if (interaction.options.getSubcommand() === "league") {
-            onboarding.completeLeagueStep(step as LeagueOnboardingStep);
-        } else if (interaction.options.getSubcommand() === "member") {
-            const member = interaction.options.getMentionable("user") as GuildMember;
-            onboarding.completeMemberStep(member.id, step as MemberOnboardingStep);
+        if (interaction.commandName === "claim") {
+            const teamId = interaction.options.getString("team") as string;
+            const teamNamesMap = league.getTeamNamesMap();
+            ownersStorage.add(interaction.user.id, teamId);
+            await interaction.reply(`${interaction.user} has claimed **${teamNamesMap[teamId]}**`);
         }
-        await interaction.reply({ content: "Step completed!", ephemeral: true });
-    }
 
-    if (interaction.commandName === "help") {
-        const helpEmbed = embeds.help();
-        await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+        if (interaction.commandName === "team") {
+            const owners = ownersStorage.read();
+            const teamId = owners[interaction.user.id] as string;
+            if (!teamId) {
+                await interaction.reply({
+                    content: "You do not own a team. Use **/claim** to claim one.",
+                    ephemeral: true
+                });
+                return;
+            }
+            const teamEmbed = embeds.team(league, teamId);
+            await interaction.reply({ embeds: [teamEmbed], ephemeral: true });
+        }
+
+        if (interaction.commandName === "constitution") {
+            await interaction.reply(`**Major League Shotgunners Constitution**\n${CONSTITUTION_URL}`);
+        }
+
+        if (interaction.commandName === "punishments") {
+            await interaction.reply(`**Major League Shotgunners Punishments**\n${PUNISHMENT_SUBMISSIONS_URL}`);
+        }
+
+        if (interaction.commandName === "onboard") {
+            const step = interaction.options.getString("step");
+            if (interaction.options.getSubcommand() === "league") {
+                onboarding.completeLeagueStep(step as LeagueOnboardingStep);
+            } else if (interaction.options.getSubcommand() === "member") {
+                const member = interaction.options.getMentionable("user") as GuildMember;
+                onboarding.completeMemberStep(member.id, step as MemberOnboardingStep);
+            }
+            await interaction.reply({ content: "Step completed!", ephemeral: true });
+        }
+
+        if (interaction.commandName === "help") {
+            const helpEmbed = embeds.help();
+            await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+        }
+    } catch (err) {
+        console.error("Failed to handle slash command", err);
     }
 });
 

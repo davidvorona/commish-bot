@@ -3,10 +3,12 @@ import { SlashCommandBuilder, TextChannel } from "discord.js";
 import { AnyObject, ConfigJson } from "./types";
 import { readJson } from "./util";
 import { CronJob } from "cron";
+import Storage from "./storage";
 const {
     PUNISHMENT_SUBMISSIONS_URL,
     PUNISHMENTS_POLL_URL
 } = readJson(path.join(__dirname, "../config/config.json")) as ConfigJson;
+
 export enum MemberOnboardingStep {
     Paid = "Paid",
     PunishmentsChosen = "PunishmentsChosen",
@@ -26,9 +28,18 @@ export default class Onboarding {
 
     channel: TextChannel;
 
+    storage: Storage;
+
     ticker: CronJob;
 
-    constructor(cronTime: string, state: AnyObject, channel: TextChannel) {
+    constructor(
+        cronTime: string,
+        storage: Storage,
+        channel: TextChannel
+    ) {
+        this.storage = storage;
+
+        const state = storage.read() as AnyObject;
         this.memberSteps = state.memberSteps || {};
         this.leagueSteps = state.leagueSteps || [];
 
@@ -44,6 +55,7 @@ export default class Onboarding {
         return new SlashCommandBuilder()
             .setName("onboard")
             .setDescription("Complete an onboarding step")
+            .setDefaultMemberPermissions(0)
             .addSubcommand(subcommand =>
                 subcommand
                     .setName("league")
@@ -85,6 +97,8 @@ export default class Onboarding {
 
     completeLeagueStep(step: LeagueOnboardingStep) {
         this.leagueSteps.push(step);
+        this.storage.add("leagueSteps", this.leagueSteps);
+
     }
 
     completeMemberStep(userId: string, step: MemberOnboardingStep) {
@@ -92,19 +106,34 @@ export default class Onboarding {
             this.memberSteps[userId] = [];
         }
         this.memberSteps[userId].push(step);
+        this.storage.add("memberSteps", this.memberSteps);
     }
 
     async remind() {
-        if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsSubmitted) === -1) {
-            await this.channel.send(`Don't forget to submit your punishments:\n${PUNISHMENT_SUBMISSIONS_URL}`);
-        } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1) {
-            await this.channel.send(`Don't forget to complete the punishments poll!\n${PUNISHMENTS_POLL_URL}`);
-        } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsVetoed) === -1) {
-            await this.channel.send(`Don't forget to veto a single punishment of your choice:\n${PUNISHMENT_SUBMISSIONS_URL}`);
-        }
+        try {
+            if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsSubmitted) === -1) {
+                await this.channel.send(`Don't forget to submit your punishments:\n${PUNISHMENT_SUBMISSIONS_URL}`);
+            } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1) {
+                await this.channel.send(`Don't forget to complete the punishments poll!\n${PUNISHMENTS_POLL_URL}`);
+            } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsVetoed) === -1) {
+                await this.channel.send(`Don't forget to veto a single punishment of your choice:\n${PUNISHMENT_SUBMISSIONS_URL}`);
+            }
 
-        const unpaidMembers: string[] = Object.keys(this.memberSteps)
-            .filter(userId => this.memberSteps[userId].indexOf(MemberOnboardingStep.Paid) > -1);
-        console.log(unpaidMembers);
+            const paidMembers: string[] = Object.keys(this.memberSteps)
+                .filter(userId => this.memberSteps[userId].indexOf(MemberOnboardingStep.Paid) > -1);
+            const unpaidMembers = this.channel.members.filter(m => !m.user.bot && paidMembers.indexOf(m.user.id) === -1);
+            if (unpaidMembers.size > 0) {
+                await this.channel.send(`${unpaidMembers.map(m => m.user).join(" ")}\nPlease pay your buy-in ($50) to the commish!`);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+
+    toObject() {
+        return {
+            memberSteps: this.memberSteps,
+            leagueSteps: this.leagueSteps
+        };
     }
 }
