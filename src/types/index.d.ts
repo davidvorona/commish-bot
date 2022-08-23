@@ -9,19 +9,13 @@ export interface ConfigJson {
     GUILD_ID: string;
     DATA_DIR: string;
     TEST_CHANNEL_ID: string;
-}
-
-export interface YahooJson {
-    CLIENT_ID: string;
-    CLIENT_SECRET: string;
-    APP_ID: string;
-    LEAGUE_ID: string;
-}
-
-export interface LinksJson {
-    PUNISHMENT_SUBMISSIONS: string;
-    PUNISHMENTS_POLL: string;
-    CONSTITUTION: string;
+    YAHOO_CLIENT_ID: string;
+    YAHOO_CLIENT_SECRET: string;
+    YAHOO_APP_ID: string;
+    YAHOO_FANTASY_LEAGUE_ID: string;
+    PUNISHMENT_SUBMISSIONS_URL: string;
+    PUNISHMENTS_POLL_URL: string;
+    CONSTITUTION_URL: string;
 }
 
 export interface AnyObject {

@@ -33,6 +33,12 @@ export const parseJson = (dataJson: string): any => {
     }
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const readJson = (filePath: string): any => {
+    const dataJson = readFile(filePath);
+    return parseJson(dataJson);
+};
+
 /**
  * Finds a random number between 0 and the provided max, exclusive.
  * Example: rand(3) => 0 or 1 or 2

@@ -1,9 +1,9 @@
 import path from "path";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
-import { Client, Guild, GatewayIntentBits, TextChannel, SlashCommandBuilder, GuildMember } from "discord.js";
-import { parseJson, readFile } from "./util";
-import { ConfigJson, AuthJson, YahooJson, LinksJson, AnyObject } from "./types";
+import { Client, Guild, GatewayIntentBits, TextChannel, GuildMember } from "discord.js";
+import { readJson } from "./util";
+import { ConfigJson, AuthJson, AnyObject } from "./types";
 import League from "./league";
 import WeekTicker from "./week-ticker";
 import embeds from "./embeds";
@@ -13,18 +13,17 @@ import Onboarding, { LeagueOnboardingStep, MemberOnboardingStep } from "./onboar
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const defaultCommands = require("../config/commands");
 
-const authPath = path.join(__dirname, "../config/auth.json");
-const { TOKEN } = parseJson(readFile(authPath)) as AuthJson;
-const configPath = path.join(__dirname, "../config/config.json");
-const { CLIENT_ID, GUILD_ID, TEST_CHANNEL_ID } = parseJson(readFile(configPath)) as ConfigJson;
-const yahooPath = path.join(__dirname, "../config/yahoo.json");
+const { TOKEN } = readJson(path.join(__dirname, "../config/auth.json")) as AuthJson;
 const {
-    CLIENT_ID: YAHOO_CLIENT_ID,
-    CLIENT_SECRET,
-    LEAGUE_ID
-} = parseJson(readFile(yahooPath)) as YahooJson;
-const linksPath = path.join(__dirname, "../config/links.json");
-const { PUNISHMENT_SUBMISSIONS, CONSTITUTION } = parseJson(readFile(linksPath)) as LinksJson;
+    CLIENT_ID,
+    GUILD_ID,
+    TEST_CHANNEL_ID,
+    YAHOO_CLIENT_ID,
+    YAHOO_CLIENT_SECRET,
+    YAHOO_FANTASY_LEAGUE_ID,
+    PUNISHMENT_SUBMISSIONS_URL,
+    CONSTITUTION_URL
+} = readJson(path.join(__dirname, "../config/config.json")) as ConfigJson;
 
 const rest = new REST({ version: "9" }).setToken(TOKEN);
 
@@ -35,7 +34,7 @@ const client = new Client({
 const ownersStorage = new Storage("owners.json");
 const onboardingStorage = new Storage("onboarding.json");
 
-const league = new League(LEAGUE_ID, YAHOO_CLIENT_ID, CLIENT_SECRET);
+let league: League;
 let onboarding: Onboarding;
 
 const setGuildCommands = async (guildId: string, builtCommands: AnyObject[] = []) => {
@@ -74,9 +73,12 @@ client.on("ready", async () => {
                 throw new Error("Unable to establish main channel");
             }
 
+            league = new League(YAHOO_FANTASY_LEAGUE_ID, YAHOO_CLIENT_ID, YAHOO_CLIENT_SECRET);
             await league.load();
             console.info("Loaded league:", league);
 
+            // Start the preseason onboarding process
+            // TODO: Maybe only in "predraft"?
             const cronTimeOnboarding = process.env.DEV_MODE
                 ? "* * * * *"   // Every minute
                 : "0 10,22 * * *"; // Every day at 10am and 10pm
@@ -84,27 +86,15 @@ client.on("ready", async () => {
             onboarding = new Onboarding(cronTimeOnboarding, onboardingState, mainChannel);
             onboarding.start();
 
-            // map: id => name
-            const teamNamesMap = league.getTeamNamesMap();
-            const choices = Object.keys(teamNamesMap).map(
-                teamId => ({ name: teamNamesMap[teamId], value: teamId })
-            );
-            const command = new SlashCommandBuilder()
-                .setName("claim")
-                .setDescription("Claim a team")
-                .addStringOption((option) => {
-                    return option
-                        .setName("team")
-                        .setRequired(true)
-                        .setDescription("Choose a team")
-                        .addChoices(...choices);
-                });
-            await setGuildCommands(guild.id, [command]);
+            // Register dynamic commands
+            const claimCommand = league.buildClaimCommand();
+            const onboardingCommand = onboarding.buildCommand();
+            await setGuildCommands(guild.id, [onboardingCommand, claimCommand]);
 
+            // Start the week ticker for weekly updates
             const cronTimeWeek = process.env.DEV_MODE
                 ? "* * * * *"   // Every minute
                 : "0 9 * * 2"; // Every Tuesday at 9am
-            
             const weekTicker = new WeekTicker(cronTimeWeek, league, mainChannel);
             weekTicker.start();
         }
@@ -159,31 +149,20 @@ client.on("interactionCreate", async (interaction) => {
     }
 
     if (interaction.commandName === "constitution") {
-        await interaction.reply(`**Major League Shotgunners Constitution**\n${CONSTITUTION}`);
+        await interaction.reply(`**Major League Shotgunners Constitution**\n${CONSTITUTION_URL}`);
     }
 
     if (interaction.commandName === "punishments") {
-        await interaction.reply(`**Major League Shotgunners Punishments**\n${PUNISHMENT_SUBMISSIONS}`);
+        await interaction.reply(`**Major League Shotgunners Punishments**\n${PUNISHMENT_SUBMISSIONS_URL}`);
     }
 
     if (interaction.commandName === "onboard") {
-        const leagueStep = interaction.options.getString("league_step");
-        const memberStep = interaction.options.getString("member_step");
-        const userMention = interaction.options.getMentionable("member") as GuildMember;
-        if (!!leagueStep == !!memberStep) {
-            await interaction.reply("You must choose either a league or member onboarding step.");
-            return;
-        }
-        if (!!memberStep != !!userMention) {
-            await interaction.reply("You must choose a specific user and the completed step.");
-            return;
-        }
-        if (memberStep && userMention) {
-            const step = memberStep as MemberOnboardingStep;
-            onboarding.completeMemberStep(userMention.user.id, step);
-        } else if (leagueStep) {
-            const step = leagueStep as LeagueOnboardingStep;
-            onboarding.completeLeagueStep(step);
+        const step = interaction.options.getString("step");
+        if (interaction.options.getSubcommand() === "league") {
+            onboarding.completeLeagueStep(step as LeagueOnboardingStep);
+        } else if (interaction.options.getSubcommand() === "member") {
+            const member = interaction.options.getMentionable("user") as GuildMember;
+            onboarding.completeMemberStep(member.id, step as MemberOnboardingStep);
         }
         await interaction.reply({ content: "Step completed!", ephemeral: true });
     }

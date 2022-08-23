@@ -1,3 +1,4 @@
+import { SlashCommandBuilder } from "discord.js";
 import YahooFantasy from "yahoo-fantasy";
 import { AnyObject } from "./types";
 
@@ -69,6 +70,23 @@ export default class League {
 
     async refresh() {
         this.load();
+    }
+
+    buildClaimCommand() {
+        const teamNamesMap = this.getTeamNamesMap();
+        const choices = Object.keys(teamNamesMap).map(
+            teamId => ({ name: teamNamesMap[teamId], value: teamId })
+        );
+        return new SlashCommandBuilder()
+            .setName("claim")
+            .setDescription("Claim a team")
+            .addStringOption((option) => {
+                return option
+                    .setName("team")
+                    .setRequired(true)
+                    .setDescription("Choose a team")
+                    .addChoices(...choices);
+            });
     }
 
     async nextWeek() {

@@ -1,10 +1,8 @@
 import path from "path";
 import fs from "fs";
 import { ConfigJson, AnyObject } from "./types";
-import { readFile, parseJson } from "./util";
-
-const configPath = path.join(__dirname, "../config/config.json");
-const { DATA_DIR } = parseJson(readFile(configPath)) as ConfigJson;
+import { readJson, parseJson } from "./util";
+const { DATA_DIR } = readJson(path.join(__dirname, "../config/config.json")) as ConfigJson;
 
 type AnyValue = AnyObject | string | number;
 
