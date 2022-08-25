@@ -111,20 +111,48 @@ export default class Onboarding {
 
     async remind() {
         try {
-            if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsSubmitted) === -1) {
+            // Send out generic reminders
+            const punishmentsNotSubmitted = this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsSubmitted) === -1;
+            const usersNotChoose = Object.keys(this.memberSteps)
+                .filter(userId => this.memberSteps[userId].indexOf(MemberOnboardingStep.PunishmentsChosen) === -1);
+            const punishmentsNotChosen = this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1 || usersNotChoose.length;
+            if (punishmentsNotSubmitted) {
                 await this.channel.send(`Don't forget to submit your punishments:\n${PUNISHMENT_SUBMISSIONS_URL}`);
-            } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1) {
+            } else if (punishmentsNotChosen) {
                 await this.channel.send(`Don't forget to complete the punishments poll!\n${PUNISHMENTS_POLL_URL}`);
             } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsVetoed) === -1) {
                 await this.channel.send(`Don't forget to veto a single punishment of your choice:\n${PUNISHMENT_SUBMISSIONS_URL}`);
             }
 
+            const members = this.channel.members.filter(m => !m.user.bot);
+            // Compile individual reminders
+            const reminders: Record<string, string[]> = {};
+            members.filter(m => !m.user.bot).forEach((m) => {
+                reminders[m.user.id] = [];
+            });
+            // Find users that still need to complete the punishments poll
+            if (!punishmentsNotSubmitted && punishmentsNotChosen) {
+                usersNotChoose.forEach((userId) => {
+                    reminders[userId].push(MemberOnboardingStep.PunishmentsChosen);
+                });
+            }
+            // Find users that still need to pay
             const paidMembers: string[] = Object.keys(this.memberSteps)
                 .filter(userId => this.memberSteps[userId].indexOf(MemberOnboardingStep.Paid) > -1);
-            const unpaidMembers = this.channel.members.filter(m => !m.user.bot && paidMembers.indexOf(m.user.id) === -1);
-            if (unpaidMembers.size > 0) {
-                await this.channel.send(`${unpaidMembers.map(m => m.user).join(" ")}\nPlease pay your buy-in ($50) to the commish!`);
-            }
+            const unpaidMembers = members.filter(m => paidMembers.indexOf(m.user.id) === -1);
+            unpaidMembers.forEach((member) => {
+                reminders[member.user.id].push(MemberOnboardingStep.Paid);
+            });
+            // Send out individual reminders
+            Object.keys(reminders).forEach(async (userId) => {
+                const member = members.find(m => m.user.id === userId);
+                const userReminders = reminders[userId];
+                if (userReminders.length) {
+                    await member?.send("Hey gunner, stop being a fuckhead and do your duty. You must:"
+                    + `${userReminders.indexOf(MemberOnboardingStep.Paid) > -1 ? "\n- Pay your buy-in ($50) to the commish.": ""}`
+                    + `${userReminders.indexOf(MemberOnboardingStep.PunishmentsChosen) > -1 ? "\n- Submit your response to the punishments poll." : ""}`);
+                }
+            });
         } catch (err) {
             console.error(err);
         }
