@@ -15,6 +15,7 @@ export interface ConfigJson {
     YAHOO_FANTASY_LEAGUE_ID: string;
     PUNISHMENT_SUBMISSIONS_URL: string;
     PUNISHMENTS_POLL_URL: string;
+    PUNISHMENT_VETOES_URL: string;
     CONSTITUTION_URL: string;
 }
 

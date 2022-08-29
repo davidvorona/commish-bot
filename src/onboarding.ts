@@ -6,7 +6,8 @@ import { CronJob } from "cron";
 import Storage from "./storage";
 const {
     PUNISHMENT_SUBMISSIONS_URL,
-    PUNISHMENTS_POLL_URL
+    PUNISHMENTS_POLL_URL,
+    PUNISHMENT_VETOES_URL
 } = readJson(path.join(__dirname, "../config/config.json")) as ConfigJson;
 
 export enum MemberOnboardingStep {
@@ -115,13 +116,13 @@ export default class Onboarding {
             const punishmentsNotSubmitted = this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsSubmitted) === -1;
             const usersNotChoose = Object.keys(this.memberSteps)
                 .filter(userId => this.memberSteps[userId].indexOf(MemberOnboardingStep.PunishmentsChosen) === -1);
-            const punishmentsNotChosen = this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1 || usersNotChoose.length;
+            const punishmentsNotChosen = this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsPolled) === -1 && usersNotChoose.length;
             if (punishmentsNotSubmitted) {
                 await this.channel.send(`Don't forget to submit your punishments:\n${PUNISHMENT_SUBMISSIONS_URL}`);
             } else if (punishmentsNotChosen) {
                 await this.channel.send(`Don't forget to complete the punishments poll!\n${PUNISHMENTS_POLL_URL}`);
             } else if (this.leagueSteps.indexOf(LeagueOnboardingStep.PunishmentsVetoed) === -1) {
-                await this.channel.send(`Don't forget to veto a single punishment of your choice:\n${PUNISHMENT_SUBMISSIONS_URL}`);
+                await this.channel.send(`Don't forget to veto a single punishment of your choice:\n${PUNISHMENT_VETOES_URL}`);
             }
 
             const members = this.channel.members.filter(m => !m.user.bot);

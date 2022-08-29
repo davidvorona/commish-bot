@@ -27,6 +27,9 @@ export default class WeekTicker {
     }
 
     async tick() {
+        // Refresh league data
+        await this.league.refresh();
+        // Use draft status to determine how to handle new week
         const draftStatus = this.league.getDraftStatus();
         try {
             if (draftStatus === DRAFT_STATUS.PREDRAFT) {
@@ -57,7 +60,22 @@ export default class WeekTicker {
     }
 
     async handleNewWeek() {
-        const newWeek = await this.league.nextWeek();
-        await this.channel.send(`Welcome to **Week ${newWeek}**! As always, there are winners and losers.`);
+        if (!this.league.start_date) {
+            throw new Error("No start date defined for league, aborting");
+        }
+        const startDate = this.league.start_date;
+        const currentDate = new Date();
+        const nextWeekDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+        // If league isn't starting in the next week, just display draft results
+        if (startDate >= nextWeekDate) {
+            await this.channel.send("The draft is complete, and gullets are primed for gaping.");
+        // If the league starts this week
+        } else if (startDate <= nextWeekDate && startDate >= currentDate) {
+            await this.channel.send("The season starts this week! Get those guns ready.");
+        // If the league has started, it's a new week
+        } else {
+            const newWeek = await this.league.nextWeek();
+            await this.channel.send(`Welcome to **Week ${newWeek}**! As always, there are winners and losers.`);
+        }
     }
 }

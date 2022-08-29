@@ -69,7 +69,7 @@ export default class League {
     }
 
     async refresh() {
-        this.load();
+        await this.load();
     }
 
     buildClaimCommand() {
