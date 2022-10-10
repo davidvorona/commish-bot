@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import crypto from "crypto";
 import { TextChannel } from "discord.js";
+import { CRON_TIME } from "./constants";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const isEmpty = (thing: any) =>
@@ -68,4 +69,11 @@ export const sendTypingAndWait = async (channel: TextChannel, ms: number) => {
 
 export const sendTypingAndWaitRandom = async (channel: TextChannel, ms: number) => {
     await sendTypingAndWait(channel, rand(ms));
+};
+
+export const getCronTime = (cronTime: string) => {
+    if (process.env.DEV_MODE) {
+        return CRON_TIME.DEBUG;
+    }
+    return cronTime;
 };

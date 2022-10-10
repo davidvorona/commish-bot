@@ -30,7 +30,7 @@ export default class League {
 
     teams?: AnyObject[];
 
-    scoreboard?: AnyObject;
+    scoreboards?: AnyObject[];
 
     constructor(leagueId: string, yfId: string, yfSecret: string) {
         this.yf = new YahooFantasy(
@@ -40,6 +40,17 @@ export default class League {
 
         this.id = leagueId;
         this.key = `nfl.l.${this.id}`;
+    }
+
+    async fetchScoreboards(week: number) {
+        const scoreboards = await Promise.all(new Array(week).fill(0).map(async (x, idx) => {
+            const result = await this.yf.league.scoreboard(this.key, idx + 1);
+            return {
+                matchups: result.scoreboard.matchups,
+                week: Number(result.scoreboard.week)
+            };
+        }));
+        return scoreboards;
     }
 
     async load() {
@@ -63,9 +74,11 @@ export default class League {
         results = await this.yf.league.teams(this.key);
         this.teams = results.teams;
 
-        // Set scoreboard: current week + matchups
-        results = await this.yf.league.scoreboard(this.key);
-        this.scoreboard = results.scoreboard;
+        // Set scoreboards: current and previous week matchups
+        this.scoreboards = results.scoreboard;
+        if (this.current_week && this.current_week > 1) {
+            this.scoreboards = await this.fetchScoreboards(this.current_week);
+        }
     }
 
     async refresh() {
@@ -162,5 +175,27 @@ export default class League {
             result[t.team_id] = t.name;
         });
         return result;
+    }
+
+    getPreviousWeekWinners() {
+        const previousWeek = this.current_week as number - 1;
+        const scoreboard = this.scoreboards?.find(s => s.week === previousWeek);
+        if (!scoreboard) {
+            throw new Error("Invalid week, no scoreboard found");
+        }
+        const teams = scoreboard.matchups
+            .map((m: AnyObject) => m.teams.find((t: AnyObject) => t.team_key === m.winner_team_key));
+        return teams.map((t: AnyObject) => t.team_id);
+    }
+
+    getPreviousWeekLosers() {
+        const previousWeek = this.current_week as number - 1;
+        const scoreboard = this.scoreboards?.find(s => s.week === previousWeek);
+        if (!scoreboard) {
+            throw new Error("Invalid week, no scoreboard found");
+        }
+        const teams = scoreboard.matchups
+            .map((m: AnyObject) => m.teams.find((t: AnyObject) => t.team_key !== m.winner_team_key));
+        return teams.map((t: AnyObject) => t.team_id);
     }
 }
