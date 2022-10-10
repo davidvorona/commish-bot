@@ -5,10 +5,10 @@ import { Client, Guild, GatewayIntentBits, TextChannel, GuildMember } from "disc
 import { readJson } from "./util";
 import { ConfigJson, AuthJson, AnyObject } from "./types";
 import League from "./league";
-import WeekTicker from "./week-ticker";
 import embeds from "./embeds";
 import Storage from "./storage";
-import Onboarding, { LeagueOnboardingStep, MemberOnboardingStep } from "./onboarding";
+import { LeagueOnboardingStep, MemberOnboardingStep } from "./onboarding";
+import Commissioner from "./commissioner";
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const defaultCommands = require("../config/commands");
@@ -32,11 +32,9 @@ const client = new Client({
 });
 
 const ownersStorage = new Storage("owners.json");
-const onboardingStorage = new Storage("onboarding.json");
 
 let league: League;
-let onboarding: Onboarding;
-let weekTicker: WeekTicker;
+let commissioner: Commissioner;
 
 const setGuildCommands = async (guildId: string, builtCommands: AnyObject[] = []) => {
     try {
@@ -82,26 +80,14 @@ client.on("ready", async () => {
             await league.load();
             console.info("Loaded league:", league);
 
-            // Start the preseason onboarding process
-            // TODO: Maybe only in "predraft"?
-            const cronTimeOnboarding = process.env.DEV_MODE
-                ? "* * * * *"   // Every minute
-                : "0 10,22 * * *"; // Every day at 10am and 10pm
-            onboarding = new Onboarding(cronTimeOnboarding, onboardingStorage, mainChannel);
-            onboarding.start();
-            console.info("Loaded onboarding", onboarding.toObject());
+
+            // Start the commissioner, which handles scheduling and state
+            commissioner = new Commissioner(league, ownersStorage, mainChannel);
+            commissioner.start();
+            const builtCommands = commissioner.getCommands();
 
             // Register dynamic commands
-            const claimCommand = league.buildClaimCommand();
-            const onboardingCommand = onboarding.buildCommand();
-            await setGuildCommands(guild.id, [onboardingCommand, claimCommand]);
-
-            // Start the week ticker for weekly updates
-            const cronTimeWeek = process.env.DEV_MODE
-                ? "* * * * *"   // Every minute
-                : "0 9 * * 2"; // Every Tuesday at 9am
-            weekTicker = new WeekTicker(cronTimeWeek, league, mainChannel);
-            weekTicker.start();
+            await setGuildCommands(guild.id, builtCommands);
         }
     } catch (err) {
         console.error(err);
@@ -162,6 +148,7 @@ client.on("interactionCreate", async (interaction) => {
         }
 
         if (interaction.commandName === "onboard") {
+            const onboarding = commissioner.getOnboarding();
             const step = interaction.options.getString("step");
             if (interaction.options.getSubcommand() === "league") {
                 onboarding.completeLeagueStep(step as LeagueOnboardingStep);

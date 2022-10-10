@@ -2,7 +2,6 @@ import path from "path";
 import { SlashCommandBuilder, TextChannel } from "discord.js";
 import { AnyObject, ConfigJson } from "./types";
 import { readJson } from "./util";
-import { CronJob } from "cron";
 import Storage from "./storage";
 const {
     PUNISHMENT_SUBMISSIONS_URL,
@@ -31,10 +30,7 @@ export default class Onboarding {
 
     storage: Storage;
 
-    ticker: CronJob;
-
     constructor(
-        cronTime: string,
         storage: Storage,
         channel: TextChannel
     ) {
@@ -45,11 +41,6 @@ export default class Onboarding {
         this.leagueSteps = state.leagueSteps || [];
 
         this.channel = channel;
-        this.ticker = new CronJob(cronTime, () => this.remind());
-    }
-
-    start() {
-        this.ticker.start();
     }
 
     buildCommand() {
