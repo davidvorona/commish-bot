@@ -1,7 +1,7 @@
 import path from "path";
 import { REST } from "@discordjs/rest";
 import { Routes } from "discord-api-types/v9";
-import { Client, Guild, GatewayIntentBits, TextChannel, GuildMember } from "discord.js";
+import { Client, Guild, GatewayIntentBits, GuildMember } from "discord.js";
 import { readJson } from "./util";
 import { ConfigJson, AuthJson, AnyObject } from "./types";
 import League from "./league";
@@ -17,7 +17,6 @@ const { TOKEN } = readJson(path.join(__dirname, "../config/auth.json")) as AuthJ
 const {
     CLIENT_ID,
     GUILD_ID,
-    TEST_CHANNEL_ID,
     YAHOO_CLIENT_ID,
     YAHOO_CLIENT_SECRET,
     YAHOO_FANTASY_LEAGUE_ID,
@@ -61,16 +60,7 @@ client.on("ready", async () => {
             const guild = client.guilds.cache.find(g => g.id === GUILD_ID);
             if (!guild) {
                 throw new Error("There is no valid guild ID, aborting");
-            }
-
-            // Get the main channel for bot messages
-            const mainChannel = process.env.DEV_MODE
-                ? guild.channels.cache.find(c => c.id === TEST_CHANNEL_ID)
-                : guild.systemChannel;
-            
-            if (!mainChannel || !(mainChannel instanceof TextChannel)) {
-                throw new Error("Unable to establish main channel");
-            }
+            }        
 
             // Fetch guild members to cache them
             await guild.members.fetch();
@@ -82,11 +72,11 @@ client.on("ready", async () => {
 
 
             // Start the commissioner, which handles scheduling and state
-            commissioner = new Commissioner(league, ownersStorage, mainChannel);
+            commissioner = new Commissioner(league, ownersStorage, guild);
             commissioner.start();
-            const builtCommands = commissioner.getCommands();
 
             // Register dynamic commands
+            const builtCommands = commissioner.getCommands();
             await setGuildCommands(guild.id, builtCommands);
         }
     } catch (err) {

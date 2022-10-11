@@ -198,4 +198,21 @@ export default class League {
             .map((m: AnyObject) => m.teams.find((t: AnyObject) => t.team_key !== m.winner_team_key));
         return teams.map((t: AnyObject) => t.team_id);
     }
+
+    getPreviousWeekBiggestLoser() {
+        const previousWeek = this.current_week as number - 1;
+        const scoreboard = this.scoreboards?.find(s => s.week === previousWeek);
+        if (!scoreboard) {
+            throw new Error("Invalid week, no scoreboard found");
+        }
+        const teams = scoreboard.matchups
+            .map((m: AnyObject) => m.teams.find((t: AnyObject) => t.team_key !== m.winner_team_key));
+        let biggestLoser = teams[0];
+        for (let i = 1; i < teams.length; i++) {
+            if (Number(teams[i].points.total) < Number(biggestLoser.points.total)) {
+                biggestLoser = teams[i];
+            }
+        }
+        return biggestLoser.team_id;
+    }
 }

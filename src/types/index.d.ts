@@ -9,6 +9,8 @@ export interface ConfigJson {
     GUILD_ID: string;
     DATA_DIR: string;
     TEST_CHANNEL_ID: string;
+    SHOTGUN_CHANNEL_ID: string;
+    PUNISHMENTS_CHANNEL_ID: string;
     YAHOO_CLIENT_ID: string;
     YAHOO_CLIENT_SECRET: string;
     YAHOO_APP_ID: string;

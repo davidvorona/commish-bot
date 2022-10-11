@@ -1,18 +1,27 @@
 import { CronJob } from "cron";
-import { GuildMember, TextChannel } from "discord.js";
+import path from "path";
+import { Guild, GuildMember, TextChannel } from "discord.js";
 import Storage from "./storage";
 import League from "./league";
 import embeds from "./embeds";
 import { DRAFT_STATUS, CRON_TIME } from "./constants";
 import Onboarding from "./onboarding";
 import PunishmentManager from "./punishments";
-import { AnyObject } from "./types";
-import { getCronTime } from "./util";
+import { AnyObject, ConfigJson } from "./types";
+import { getCronTime, readJson } from "./util";
+
+const {
+    SHOTGUN_CHANNEL_ID,
+    PUNISHMENTS_CHANNEL_ID,
+    TEST_CHANNEL_ID
+} = readJson(path.join(__dirname, "../config/config.json")) as ConfigJson;
 
 const onboardingStorage = new Storage("onboarding.json");
 const punishmentsStorage = new Storage("punishments.json");
 
 export default class Commissioner {
+    guild: Guild;
+
     channel: TextChannel;
 
     ownersStorage: Storage;
@@ -35,8 +44,18 @@ export default class Commissioner {
 
     punishmentRemindTicker: CronJob;
 
-    constructor(league: League, ownersStorage: Storage, channel: TextChannel) {
-        this.channel = channel;
+    constructor(league: League, ownersStorage: Storage, guild: Guild) {
+        this.guild = guild;
+
+        // Get the main channel for bot messages
+        const mainChannel = process.env.DEV_MODE
+            ? guild.channels.cache.find(c => c.id === TEST_CHANNEL_ID)
+            : guild.systemChannel;
+        if (!mainChannel || !(mainChannel instanceof TextChannel)) {
+            throw new Error("Unable to establish main channel");
+        }
+        this.channel = mainChannel as TextChannel;
+
         this.ownersStorage = ownersStorage;
         this.owners = ownersStorage.read() as Record<string, string>;
 
@@ -50,18 +69,24 @@ export default class Commissioner {
         // Start the preseason onboarding process:
         // If onboarding is not complete by the time the draft is done,
         // then leave remaining onboarding up to the commissioner
-        this.onboarding = new Onboarding(onboardingStorage, channel);
+        this.onboarding = new Onboarding(onboardingStorage, this.channel);
         this.commands.push(this.onboarding.buildCommand());
         console.info("Loaded onboarding", this.onboarding.toObject());
         this.onboardingTicker = new CronJob(getCronTime(CRON_TIME.ONBOARDING), () => this.onboarding.remind());
 
-        this.punishments = new PunishmentManager(punishmentsStorage, channel);
+        // Load the punishment manager, which handles shotguns and biggest loser punishments
+        this.punishments = new PunishmentManager(punishmentsStorage, this.channel);
         console.info("Loaded punishments", this.punishments);
-        this.punishmentPickerTicker = new CronJob(getCronTime(CRON_TIME.PUNISHMENT_PICKER), () => this.punishments.pick());
-        this.punishmentRemindTicker = new CronJob(getCronTime(CRON_TIME.PUNISHMENT_REMIND), () => this.punishments.remind());
-
-        this.start();
-
+        // Scheduled for every Tuesday, picks two punishments for biggest loser to choose
+        this.punishmentPickerTicker = new CronJob(
+            getCronTime(CRON_TIME.PUNISHMENT_PICKER),
+            () => this.punishments.pick()
+        );
+        // Scheduled for every day but Tuesday, reminds all losers that they have punishments
+        this.punishmentRemindTicker = new CronJob(
+            getCronTime(CRON_TIME.PUNISHMENT_REMIND),
+            () => this.punishments.remind()
+        );
     }
 
     getOnboarding() {
@@ -91,6 +116,7 @@ export default class Commissioner {
     }
 
     async tick() {
+        const prevDraftStatus = this.league.getDraftStatus();
         // Refresh league data
         await this.league.refresh();
         // Reload owners
@@ -101,6 +127,9 @@ export default class Commissioner {
             if (draftStatus === DRAFT_STATUS.PREDRAFT) {
                 await this.handlePredraft();
             } else if (draftStatus === DRAFT_STATUS.POSTDRAFT) {
+                if (prevDraftStatus === DRAFT_STATUS.PREDRAFT) {
+                    this.onboardingTicker.stop();
+                }
                 await this.handleNewWeek();
             }
             console.info(
@@ -145,11 +174,19 @@ export default class Commissioner {
             await this.channel.send("The season starts this week! Get those teams ready and those guns primed.");
         // If the league has started, it's a new week
         } else {
+            // Announce new week
             const newWeek = await this.league.nextWeek() as number;
             await this.channel.send(`Welcome to **Week ${newWeek}**!`);
+            // Get week's losers to mention who shotguns
             const losers = this.league.getPreviousWeekLosers().map(this.getUserByTeamId).filter((u: GuildMember) => !!u);
+            const shotgunChannel = this.guild.channels.cache.get(SHOTGUN_CHANNEL_ID);
             await this.channel.send(`The following players lost in their **Week ${newWeek - 1}** matchup:`
-                + ` ${losers.join(" ")}. Post a shotgun video to #the-gunnery by Sunday at midnight!`);
+                + ` ${losers.join(" ")}. Post a shotgun video to ${shotgunChannel} by Sunday at midnight!`);
+            // Get week's biggest loser to mention who does punishment
+            const biggestLoser = this.getUserByTeamId(this.league.getPreviousWeekBiggestLoser());
+            const punishmentsChannel = this.guild.channels.cache.get(PUNISHMENTS_CHANNEL_ID);
+            await this.channel.send(`Nice job, ${biggestLoser}! You lost *and* scored the least amount of points in **Week`
+                + ` ${newWeek}**. You owe us proof of your punishment in ${punishmentsChannel} by Sunday at midnight!`);
         }
     }
 }
